@@ -111,6 +111,8 @@ b0, b1 = pooled_sample['beta'].T.mean(axis=1)   # the betas
 plt.scatter(srrs_mn.floor, np.log(srrs_mn.activity+0.1))
 xvals = np.linspace(-0.2, 1.2)
 plt.plot(xvals, b1*xvals+b0, 'r--')
+plt.ylabel('Radon estimate (log)'); plt.xlabel('Floor'); plt.title('Complete Pool model')
+
 plt.show()
 
 # At the other end of the extreme, we can fit separate (independent) means for each county. The only things
@@ -159,7 +161,7 @@ sample_counties = ('LAC QUI PARLE', 'AITKIN', 'KOOCHICHING',
 
 fig, axes = plt.subplots(2, 4, figsize=(12, 6), sharey=True, sharex=True)
 axes = axes.ravel()
-m = unpooled_fit['beta'].mean(0)
+b1_unpooled = unpooled_fit['beta'].mean(0)
 for i, c in enumerate(sample_counties):
     y = srrs_mn.log_radon[srrs_mn.county == c]
     x = srrs_mn.floor[srrs_mn.county == c]
@@ -170,14 +172,15 @@ for i, c in enumerate(sample_counties):
 
     # Plot both models and data
     xvals = np.linspace(-0.2, 1.2)
-    axes[i].plot(xvals, m * xvals + b)
-    axes[i].plot(xvals, m0 * xvals + b0, 'r--')
+    axes[i].plot(xvals, b1_unpooled * xvals + b,          label='Unpooled')
+    axes[i].plot(xvals, b1 * xvals + b0, 'r--', label='Com. Pooled')
     axes[i].set_xticks([0, 1])
     axes[i].set_xticklabels(['basement', 'floor'])
     axes[i].set_ylim(-1, 3)
     axes[i].set_title(c)
     if not i % 2:
         axes[i].set_ylabel('log radon level')
+plt.legend()
 plt.show()
 
 # NEITHER of these models are satisfactory:
@@ -199,5 +202,121 @@ plt.show()
 # In a hierarchical model, parameters are viewed as a sample from a population distribution of parameters.
 # Thus, we view them as being neither entirely different or exactly the same. This is partial pooling.
 
+# We can use PyStan to easily specify multilevel models, and fit them using Hamiltonian Monte Carlo.
+# The simplest partial pooling model for the household radon dataset is one which simply estimates
+# radon levels, without any predictors at any level. A partial pooling model represents a compromise
+# between the pooled and unpooled extremes, approximately a weighted average (based on sample size) of
+# the unpooled county estimates and the pooled estimates.
 
+# SEE FORMULA
 
+# Estimates for counties with smaller sample sizes will shrink towards the state-wide average.
+# Estimates for counties with larger sample sizes will be closer to the unpooled county estimates.
+partial_pooling = """
+data {
+  int<lower=0> N; 
+  int<lower=1,upper=85> county[N];
+  vector[N] y;
+} 
+parameters {
+  vector[85] a;
+  real mu_a;
+  real<lower=0,upper=100> sigma_a;
+  real<lower=0,upper=100> sigma_y;
+} 
+transformed parameters {
+  vector[N] y_hat;
+  for (i in 1:N)
+    y_hat[i] <- a[county[i]];
+}
+model {
+  mu_a ~ normal(0, 1);
+  a ~ normal (10 * mu_a, sigma_a);
+
+  y ~ normal(y_hat, sigma_y);
+}"""
+
+partial_pool_data = {'N': len(log_radon), 'county': county+1, 'y': log_radon}  # stan count starts at 1
+partial_pool_fit = pystan.stan(model_code=partial_pooling, data=partial_pool_data, iter=1000, chains=2)
+
+sample_trace = partial_pool_fit['a']
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharex=True, sharey=True)
+samples, counties = sample_trace.shape
+jitter = np.random.normal(scale=0.1, size=counties)
+
+n_county = srrs_mn.groupby('county')['idnum'].count()
+unpooled_means = srrs_mn.groupby('county')['log_radon'].mean()
+unpooled_sd = srrs_mn.groupby('county')['log_radon'].std()
+unpooled = pd.DataFrame({'n': n_county, 'm': unpooled_means, 'sd': unpooled_sd})
+unpooled['se'] = unpooled.sd / np.sqrt(unpooled.n)
+
+axes[0].plot(unpooled.n + jitter, unpooled.m, 'b.')
+for j, row in zip(jitter, unpooled.iterrows()):
+    name, dat = row
+    axes[0].plot([dat.n + j, dat.n + j], [dat.m - dat.se, dat.m + dat.se], 'b-')
+axes[0].set_xscale('log')
+axes[0].hlines(sample_trace.mean(), 0.9, 100, linestyles='--')
+
+samples, counties = sample_trace.shape
+means = sample_trace.mean(axis=0)
+sd = sample_trace.std(axis=0)
+axes[1].scatter(n_county.values + jitter, means)
+axes[1].set_xscale('log')
+axes[1].set_xlim(1, 100)
+axes[1].set_ylim(0, 3)
+axes[1].hlines(sample_trace.mean(), 0.9, 100, linestyles='--')
+for j, n, m, s in zip(jitter, n_county.values, means, sd):
+    axes[1].plot([n + j] * 2, [m - s, m + s], 'b-')
+plt.show()
+# Notice the difference between the unpooled and partially-pooled estimates, particularly at smaller sample sizes.
+# The former are both more extreme and more imprecise.
+
+# Varying intercept model  # UPSCALE THE TECHNIQUE:
+# This model allows intercepts to vary across county, according to a random effect.
+varying_intercept = """data {
+  int<lower=0> J; 
+  int<lower=0> N; 
+  int<lower=1,upper=J> county[N];
+  vector[N] x;
+  vector[N] y;
+} 
+parameters {
+  vector[J] a;
+  real b;
+  real mu_a;
+  real<lower=0,upper=100> sigma_a;
+  real<lower=0,upper=100> sigma_y;
+} 
+transformed parameters {
+  vector[N] y_hat;
+
+  for (i in 1:N)
+    y_hat[i] = a[county[i]] + x[i] * b;
+}
+model {
+  sigma_a ~ uniform(0, 100);
+  a ~ normal (mu_a, sigma_a);
+  b ~ normal (0, 1);
+  sigma_y ~ uniform(0, 100);
+  y ~ normal(y_hat, sigma_y);
+}
+"""
+varying_intercept_data = {'N': len(log_radon),
+                          'J': len(n_county),
+                          'county': county+1, # Stan counts starting at 1
+                          'x': floor_measure,
+                          'y': log_radon}
+
+varying_intercept_fit = pystan.stan(model_code=varying_intercept, data=varying_intercept_data, iter=1000, chains=2)
+
+a_sample = pd.DataFrame(varying_intercept_fit['a'])
+import seaborn as sns
+sns.set(style="ticks", palette="muted", color_codes=True)
+
+# Plot the orbital period with horizontal boxes
+plt.figure(figsize=(16, 6))
+sns.boxplot(data=a_sample, whis=np.inf, color="c")
+plt.show()
+varying_intercept_fit.plot(pars=['sigma_a', 'b']);
+plt.show()
