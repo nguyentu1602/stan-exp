@@ -1,7 +1,9 @@
 name: stan27
 channels:
+- conda-forge
 - anaconda
 - defaults
+
 dependencies:
 - appnope=0.1.0=py27hb466136_0
 - backports=1.0=py27hb4f9756_1
