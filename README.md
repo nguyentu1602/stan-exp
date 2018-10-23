@@ -32,6 +32,9 @@ Testing:
 https://cran.r-project.org/web/packages/rstanarm/vignettes/rstanarm.html
 
 
+### Example models
+
+
 ### Jupyternotebook with R
 TODO
 
