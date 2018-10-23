@@ -1,11 +1,9 @@
 # A4 - Decision Trees and Forests
 
 ## Setup
-Clone this repository:
+Clone from gtai
 
-`git clone https://github.gatech.edu/omscs6601/assignment_4.git`
-
-The submission scripts depend on the presence of 3 python packages - `requests`, `future`, and `nelson`. Install them using the command below:
+Install them using the command below:
 
 `pip install -r requirements.txt`
 
