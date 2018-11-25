@@ -1,11 +1,24 @@
-# HMM A6
+# AI - HMM example
+## Readings on HMMs
+AIMA: Chapter 15.1-15.3
+
+Rabiner’s famous [Tutorial on hidden Markov models and selected applications in speech recognition](http://www.cs.ubc.ca/~murphyk/Bayes/rabiner.pdf) 
+and [_errata here_](http://alumni.media.mit.edu/~rahimi/rabiner/rabiner-errata/)
+
+Thad Starner's MS thesis: Visual Recognition of American Sign Language Using Hidden Markov Models [PDF](http://dspace.mit.edu/bitstream/handle/1721.1/29089/32601581-MIT.pdf)
+
+[The Hidden Markov Model Toolkit (HTK)](http://htk.eng.cam.ac.uk/)
+
+Please read Chapter 1 The Fundamentals of HTK (pages 3-13) in The HTK Book (version 3.4) 
+[PDF](http://speech.ee.ntu.edu.tw/homework/DSP_HW2-1/htkbook.pdf)
+and [HTML](http://www.ee.columbia.edu/ln/LabROSA/doc/HTKBook21/HTKBook.html).
+
 
 ## Overview
 Hidden Markov Models are used extensively in Artificial Intelligence, Pattern Recognition, Computer Vision, and many other computer fields.  If a system has unobservable (hidden) states and each state is independent of the prior, then we can create a model of that system using probability distributions over a sequence of observations.  The idea is that we can provide this system with a series of observations to use to query what is the most likely sequence of states that generated these observations.
 
-### Due Date
-This assignment is due on December 2nd 2018 at 11:59PM UTC-12 (Anywhere on
-Earth). 
+### I Date
+ due on December 2nd 2018 at 11:59PM UTC-12 (Anywhere on Earth).
 
 The deliverables for the assignment are:
 
